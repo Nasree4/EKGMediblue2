@@ -1,0 +1,1872 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบตรวจเช็คเครื่อง EKG Mediblue</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Firebase v9.6.10 compatibility libraries for older syntax -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-storage-compat.js"></script>
+  <!-- Font Prompt สำหรับภาษาไทย -->
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <!-- Font Awesome สำหรับไอคอน -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    /* ตั้งค่าฟอนต์และสีพื้นหลังโดยรวม */
+    body {
+      font-family: 'Prompt', sans-serif;
+      background-color: #f0f4f8; /* Background ที่สว่างและดูสะอาดตาขึ้น */
+    }
+    /* สไตล์สำหรับแท็บที่ active */
+    .tab-active {
+      color: #4f46e5; /* indigo-600 สำหรับข้อความ */
+      border-bottom: 2px solid #4f46e5; /* indigo-600 สำหรับเส้นใต้ */
+      font-weight: 500;
+    }
+    /* สไตล์สำหรับ checkbox ที่ถูกเลือก */
+    .custom-checkbox,
+    .custom-radio {
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      width: 1.25rem; /* ขนาดใหญ่ขึ้นเล็กน้อย */
+      height: 1.25rem; /* ขนาดใหญ่ขึ้นเล็กน้อย */
+      border: 2px solid #d1d5db; /* สีขอบเทาอ่อน */
+      border-radius: 50%; /* สำหรับ radio */
+      display: inline-block;
+      position: relative;
+      cursor: pointer;
+      flex-shrink: 0; /* ป้องกันการหดตัว */
+      transition: all 0.2s ease-in-out; /* เพิ่ม transition */
+    }
+    .custom-checkbox {
+      border-radius: 0.25rem; /* สำหรับ checkbox */
+    }
+
+    .custom-radio:checked {
+      background-color: #4f46e5; /* indigo-600 เมื่อถูกเลือก */
+      border-color: #4f46e5; /* indigo-600 เมื่อถูกเลือก */
+    }
+    .custom-radio:checked::before {
+      content: '';
+      display: block;
+      width: 0.5rem;
+      height: 0.5rem;
+      background-color: white;
+      border-radius: 50%;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    .custom-checkbox:checked {
+      background-color: #4f46e5; /* indigo-600 เมื่อถูกเลือก */
+      border-color: #4f46e5; /* indigo-600 เมื่อถูกเลือก */
+    }
+    .custom-checkbox:checked::before {
+      content: '\2713'; /* Unicode checkmark */
+      display: block;
+      color: white;
+      font-size: 0.75rem;
+      line-height: 1;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    /* เพิ่ม focus states สำหรับ radio และ checkbox */
+    .custom-radio:focus,
+    .custom-checkbox:focus {
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.5); /* ring ด้วย indigo-400 translucent */
+    }
+
+    /* สไตล์สำหรับ badge แจ้งเตือน */
+    .notification-badge {
+      position: absolute;
+      top: -5px;
+      right: -5px;
+      background-color: #ef4444; /* แดง */
+      color: white;
+      border-radius: 50%;
+      width: 18px;
+      height: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+    }
+    /* สไตล์ loading spinner */
+    .loading {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(255, 255, 255, 0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #4f46e5; /* indigo-600 */
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    /* สไตล์ Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.4);
+      justify-content: center; /* จัดให้อยู่ตรงกลาง */
+      align-items: center; /* จัดให้อยู่ตรงกลาง */
+    }
+    .modal-content {
+      background-color: white;
+      margin: 10% auto; /* ปรับ margin เพื่อให้ดูดีขึ้น */
+      padding: 20px;
+      border-radius: 12px; /* มุมมนขึ้นเล็กน้อย */
+      width: 90%;
+      max-width: 500px;
+      box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05); /* เงาที่ดู soft ขึ้น */
+      max-height: 90vh; /* จำกัดความสูงของ modal */
+      overflow-y: auto; /* เพิ่ม scrollbar ถ้าเนื้อหาเกิน */
+    }
+    .close {
+      color: #aaa;
+      float: right;
+      font-size: 24px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .close:hover {
+      color: #555;
+    }
+    .image-preview {
+      max-width: 100%;
+      max-height: 200px;
+      margin-top: 10px;
+      border-radius: 8px; /* มุมมนขึ้น */
+      object-fit: contain; /* ปรับให้รูปภาพพอดี */
+    }
+    /* สไตล์สถานะ */
+    .status-ready {
+      background-color: #dcfce7; /* green-100 */
+      color: #166534; /* green-800 */
+    }
+    .status-issue {
+      background-color: #fee2e2; /* red-100 */
+      color: #991b1b; /* red-800 */
+    }
+    /* สไตล์ส่วนฟอร์ม */
+    .form-section {
+      margin-bottom: 1.5rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .form-section:last-child {
+      border-bottom: none;
+    }
+    .radio-group {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .radio-option {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+    }
+    .radio-option input {
+      cursor: pointer;
+    }
+    .radio-option span {
+      margin-left: 0.5rem;
+    }
+    /* สไตล์ปุ่มหมายเหตุ */
+    .note-button {
+      color: #6b7280;
+      font-size: 0.875rem;
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 0.25rem;
+      transition: all 0.2s;
+    }
+    .note-button:hover {
+      background-color: #f3f4f6;
+      color: #4b5563;
+    }
+    .note-button i {
+      font-size: 0.75rem;
+    }
+    .has-note {
+      color: #4f46e5; /* indigo-600 เมื่อมีหมายเหตุ */
+    }
+    /* สไตล์รูปภาพอุปกรณ์ */
+    .equipment-image {
+      width: 128px;
+      height: 128px;
+      object-fit: contain;
+      border-radius: 12px; /* มุมมนขึ้น */
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); /* เงาที่ดู soft ขึ้น */
+    }
+    .logo-image {
+      height: 40px;
+      width: auto;
+    }
+    /* เพิ่มสไตล์สำหรับ input focus */
+    input[type="date"]:focus,
+    input[type="text"]:focus,
+    textarea:focus,
+    .modal-content input[type="file"]:focus { /* เพิ่ม input file ใน modal */
+        outline: none;
+        border-color: #6366f1; /* indigo-500 */
+        box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25); /* indigo-500 with transparency */
+    }
+    /* สไตล์สำหรับรายการใน Detail Modal (Read-only) */
+    .detail-item-row {
+        display: flex;
+        flex-direction: column; /* Stack label and value */
+        align-items: flex-start; /* Align to start */
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #f3f4f6; /* Light border */
+    }
+    .detail-item-row:last-of-type {
+        border-bottom: none;
+    }
+    .detail-item-row .label-text {
+        font-weight: 500;
+        color: #374151; /* gray-700 */
+        margin-bottom: 0.25rem;
+    }
+    .detail-item-row .value-text {
+        color: #4b5563; /* gray-600 */
+    }
+    .detail-item-row .note-section {
+        width: 100%;
+        margin-top: 0.75rem;
+        padding-top: 0.5rem;
+        border-top: 1px dashed #e5e7eb; /* Dashed border for note */
+    }
+    .detail-item-row .note-section .note-text {
+        color: #6b7280; /* gray-500 */
+        font-style: italic;
+    }
+    .detail-item-row .note-section .image-display {
+        margin-top: 0.5rem;
+    }
+    .detail-item-row .note-section .image-display img {
+        max-width: 100%;
+        max-height: 150px; /* Smaller for detail view */
+        border-radius: 8px;
+        object-fit: contain;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    /* Print-specific styles */
+    @media print {
+        body * {
+            visibility: hidden; /* ซ่อนทุกอย่างโดยค่าเริ่มต้น */
+        }
+        /* กำหนดพื้นที่ที่ต้องการพิมพ์ */
+        #print-area, #print-area * {
+            visibility: visible; /* แสดงเฉพาะส่วนที่ต้องการพิมพ์ */
+        }
+        #print-area {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            padding: 20px;
+            box-sizing: border-box;
+            font-size: 10pt; /* ปรับขนาดฟอนต์สำหรับการพิมพ์ */
+        }
+        /* ปรับสไตล์ตารางสำหรับการพิมพ์ */
+        #print-area table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        #print-area th, #print-area td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        #print-area th {
+            background-color: #f2f2f2;
+        }
+        /* ซ่อนปุ่มและส่วนควบคุมที่ไม่เกี่ยวข้องกับการพิมพ์ */
+        .view-detail, .modal .close, .modal button, .modal input, .modal textarea {
+            display: none !important;
+        }
+        /* แสดงรูปภาพในหน้าพิมพ์ */
+        .detail-item-row .note-section .image-display img {
+            display: block !important;
+        }
+        /* จัดหน้า A4 */
+        @page {
+            size: A4;
+            margin: 1cm;
+        }
+        html, body {
+            height: auto;
+            overflow: auto;
+        }
+    }
+  </style>
+</head>
+<body>
+  <!-- Loading Indicator -->
+  <div id="loading" class="loading" style="display: none;">
+    <div class="spinner"></div>
+  </div>
+
+  <div class="min-h-screen flex flex-col">
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200 py-3 shadow-sm">
+      <div class="container mx-auto px-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center">
+            <!-- แนะนำให้เปลี่ยนเป็นโลโก้ Mediblue จริงๆ หรือไอคอนที่สื่อถึงการแพทย์ -->
+            <img src="https://placehold.co/40x40/6366f1/ffffff?text=Mediblue" alt="Mediblue Logo" class="h-8 mr-3 rounded-md">
+            <h1 class="text-lg font-medium text-gray-800">ระบบตรวจเช็คเครื่อง EKG</h1>
+          </div>
+          <div class="text-xs text-gray-500">
+            <p>เลขทะเบียน: 6515-027-1001/12</p>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <div class="bg-white border-b border-gray-200 shadow-sm">
+      <div class="container mx-auto px-4">
+        <div class="flex overflow-x-auto">
+          <button id="tab-check" class="tab-active px-4 py-3 transition-colors duration-200 focus:outline-none">
+            <i class="fas fa-clipboard-check mr-2"></i>ตรวจเช็ค
+          </button>
+          <button id="tab-history" class="text-gray-500 hover:text-gray-700 px-4 py-3 transition-colors duration-200 focus:outline-none">
+            <i class="fas fa-history mr-2"></i>ประวัติ
+          </button>
+          <button id="tab-notification" class="text-gray-500 hover:text-gray-700 px-4 py-3 transition-colors duration-200 focus:outline-none relative">
+            <i class="fas fa-bell mr-2"></i>แจ้งเตือน
+            <span id="notification-badge" class="notification-badge">0</span>
+          </button>
+          <button id="tab-dashboard" class="text-gray-500 hover:text-gray-700 px-4 py-3 transition-colors duration-200 focus:outline-none">
+            <i class="fas fa-chart-bar mr-2"></i>Dashboard
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow container mx-auto p-4">
+      <!-- Equipment Info Section -->
+      <div class="bg-white rounded-lg shadow-md p-4 mb-4">
+        <div class="flex flex-col md:flex-row items-center">
+          <div class="md:w-1/4 mb-4 md:mb-0 flex justify-center">
+            <!-- Placeholder image หากรูปภาพจริงโหลดไม่ได้ -->
+            <img src="https://www.mediblumed.com/wp-content/uploads/2024/05/ME12P-1024x1024.jpg" alt="EKG Mediblue" class="equipment-image shadow-md" onerror="this.onerror=null;this.src='https://placehold.co/128x128/cccccc/333333?text=EKG+Image+Not+Found';">
+          </div>
+          <div class="md:w-3/4 md:pl-6">
+            <h2 class="text-lg font-medium text-gray-800 mb-2">EKG Mediblue</h2>
+            <div class="grid grid-cols-2 gap-2 text-sm">
+              <p><span class="text-gray-500">วันที่เริ่มใช้งาน:</span> 13-12-65</p>
+              <p><span class="text-gray-500">ราคาเครื่อง:</span> 120,000 บาท</p>
+              <p><span class="text-gray-500">สถานะปัจจุบัน:</span> <span id="current-status" class="font-medium text-green-600">พร้อมใช้งาน</span></p>
+              <p><span class="text-gray-500">ตรวจเช็คล่าสุด:</span> <span id="last-check" class="font-medium">-</span></p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Check Form Section -->
+      <div id="content-check" class="bg-white rounded-lg shadow-md p-4">
+        <form id="check-form">
+          <div class="form-section">
+            <h2 class="text-lg font-medium text-gray-800 mb-3">1. ข้อมูลทั่วไป</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-sm text-gray-600 mb-1">วันที่ตรวจเช็ค</label>
+                <input type="date" id="check-date" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2" required>
+              </div>
+              <div>
+                <label class="block text-sm text-gray-600 mb-1">เวร</label>
+                <div class="flex space-x-4">
+                  <label class="radio-option">
+                    <input type="radio" name="shift" value="เช้า" class="custom-radio" required>
+                    <span>เช้า</span>
+                  </label>
+                  <label class="radio-option">
+                    <input type="radio" name="shift" value="บ่าย" class="custom-radio">
+                    <span>บ่าย</span>
+                  </label>
+                  <label class="radio-option">
+                    <input type="radio" name="shift" value="ดึก" class="custom-radio">
+                    <span>ดึก</span>
+                  </label>
+                </div>
+              </div>
+              <div>
+                <label class="block text-sm text-gray-600 mb-1">ชื่อผู้ตรวจเช็ค</label>
+                <input type="text" id="checker-name" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2" placeholder="ชื่อ-นามสกุล" required>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h2 class="text-lg font-medium text-gray-800 mb-3">2. ตรวจสภาพทั่วไป</h2>
+            <div class="space-y-3">
+              <!-- ช่องติ๊กใหม่: ตั้งค่าเป็นปกติทั้งหมด -->
+              <div class="flex items-center justify-end py-2 mb-4 border-b border-gray-100">
+                <label class="radio-option">
+                  <input type="checkbox" id="set-all-normal" class="custom-checkbox">
+                  <span>ตั้งค่าเป็นปกติทั้งหมด</span>
+                </label>
+              </div>
+              <!-- สิ้นสุดช่องติ๊กใหม่ -->
+
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between py-2 border-b border-gray-100">
+                <div class="mb-2 sm:mb-0">
+                  <p class="text-gray-800">1. หน้าปัดและจอแสดงผล</p>
+                  <p class="text-xs text-gray-500">ไม่เป็นคราบสกปรก, ไม่แตกหัก</p>
+                </div>
+                <div class="flex items-center justify-between sm:justify-end w-full sm:w-auto">
+                  <div class="radio-group">
+                    <label class="radio-option">
+                      <input type="radio" name="display" value="พร้อมใช้" class="custom-radio" required>
+                      <span>พร้อมใช้</span>
+                    </label>
+                    <label class="radio-option">
+                      <input type="radio" name="display" value="ชำรุด" class="custom-radio">
+                      <span>ชำรุด</span>
+                    </label>
+                  </div>
+                  <button type="button" class="add-note note-button ml-4" data-item="display">
+                    <i class="fas fa-comment"></i> หมายเหตุ
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between py-2 border-b border-gray-100">
+                <div class="mb-2 sm:mb-0">
+                  <p class="text-gray-800">2. สวิทช์เปิด-ปิดเครื่อง</p>
+                  <p class="text-xs text-gray-500">ไม่เป็นคราบสกปรก, ใช้งานได้ปกติ</p>
+                </div>
+                <div class="flex items-center justify-between sm:justify-end w-full sm:w-auto">
+                  <div class="radio-group">
+                    <label class="radio-option">
+                      <input type="radio" name="power_switch" value="พร้อมใช้" class="custom-radio" required>
+                      <span>พร้อมใช้</span>
+                    </label>
+                    <label class="radio-option">
+                      <input type="radio" name="power_switch" value="ชำรุด" class="custom-radio">
+                      <span>ชำรุด</span>
+                    </label>
+                  </div>
+                  <button type="button" class="add-note note-button ml-4" data-item="power_switch">
+                    <i class="fas fa-comment"></i> หมายเหตุ
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between py-2 border-b border-gray-100">
+                <div class="mb-2 sm:mb-0">
+                  <p class="text-gray-800">3. สวิทช์เลือกโหมดการใช้งาน</p>
+                  <p class="text-xs text-gray-500">ไม่เป็นคราบสกปรก, ไม่ชำรุด</p>
+                </div>
+                <div class="flex items-center justify-between sm:justify-end w-full sm:w-auto">
+                  <div class="radio-group">
+                    <label class="radio-option">
+                      <input type="radio" name="mode_switch" value="พร้อมใช้" class="custom-radio" required>
+                      <span>พร้อมใช้</span>
+                    </label>
+                    <label class="radio-option">
+                      <input type="radio" name="mode_switch" value="ชำรุด" class="custom-radio">
+                      <span>ชำรุด</span>
+                    </label>
+                  </div>
+                  <button type="button" class="add-note note-button ml-4" data-item="mode_switch">
+                    <i class="fas fa-comment"></i> หมายเหตุ
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between py-2 border-b border-gray-100">
+                <div class="mb-2 sm:mb-0">
+                  <p class="text-gray-800">4. ปลั๊กไฟ AC / สายไฟ AC</p>
+                  <p class="text-xs text-gray-500">ไม่มีคราบสกปรก, ไม่แตกหัก</p>
+                </div>
+                <div class="flex items-center justify-between sm:justify-end w-full sm:w-auto">
+                  <div class="radio-group">
+                    <label class="radio-option">
+                      <input type="radio" name="power_cord" value="พร้อมใช้" class="custom-radio" required>
+                      <span>พร้อมใช้</span>
+                    </label>
+                    <label class="radio-option">
+                      <input type="radio" name="power_cord" value="ชำรุด" class="custom-radio">
+                      <span>ชำรุด</span>
+                    </label>
+                  </div>
+                  <button type="button" class="add-note note-button ml-4" data-item="power_cord">
+                    <i class="fas fa-comment"></i> หมายเหตุ
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between py-2 border-b border-gray-100">
+                <div class="mb-2 sm:mb-0">
+                  <p class="text-gray-800">5. EKG Electrode / patient cable</p>
+                  <p class="text-xs text-gray-500">ไม่แตกหัก, มีครบทุกสาย, จัดเก็บเรียบร้อย</p>
+                </div>
+                <div class="flex items-center justify-between sm:justify-end w-full sm:w-auto">
+                  <div class="radio-group">
+                    <label class="radio-option">
+                      <input type="radio" name="electrode" value="พร้อมใช้" class="custom-radio" required>
+                      <span>พร้อมใช้</span>
+                    </label>
+                    <label class="radio-option">
+                      <input type="radio" name="electrode" value="ชำรุด" class="custom-radio">
+                      <span>ชำรุด</span>
+                    </label>
+                  </div>
+                  <button type="button" class="add-note note-button ml-4" data-item="electrode">
+                    <i class="fas fa-comment"></i> หมายเหตุ
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between py-2 border-b border-gray-100">
+                <div class="mb-2 sm:mb-0">
+                  <p class="text-gray-800">6. ขั้วต่อ lead แขน-ขา</p>
+                  <p class="text-xs text-gray-500">ไม่เป็นคราบสกปรก, ไม่แตกหัก</p>
+                </div>
+                <div class="flex items-center justify-between sm:justify-end w-full sm:w-auto">
+                  <div class="radio-group">
+                    <label class="radio-option">
+                      <input type="radio" name="limb_leads" value="พร้อมใช้" class="custom-radio" required>
+                      <span>พร้อมใช้</span>
+                    </label>
+                    <label class="radio-option">
+                      <input type="radio" name="limb_leads" value="ชำรุด" class="custom-radio">
+                      <span>ชำรุด</span>
+                    </label>
+                  </div>
+                  <button type="button" class="add-note note-button ml-4" data-item="limb_leads">
+                    <i class="fas fa-comment"></i> หมายเหตุ
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between py-2 border-b border-gray-100">
+                <div class="mb-2 sm:mb-0">
+                  <p class="text-gray-800">7. ขั้วต่อ lead หน้าอก</p>
+                  <p class="text-xs text-gray-500">ไม่เป็นคราบสกปรก, ไม่แตกหัก</p>
+                </div>
+                <div class="flex items-center justify-between sm:justify-end w-full sm:w-auto">
+                  <div class="radio-group">
+                    <label class="radio-option">
+                      <input type="radio" name="chest_leads" value="พร้อมใช้" class="custom-radio" required>
+                      <span>พร้อมใช้</span>
+                    </label>
+                    <label class="radio-option">
+                      <input type="radio" name="chest_leads" value="ชำรุด" class="custom-radio">
+                      <span>ชำรุด</span>
+                    </label>
+                  </div>
+                  <button type="button" class="add-note note-button ml-4" data-item="chest_leads">
+                    <i class="fas fa-comment"></i> หมายเหตุ
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between py-2 border-b border-gray-100">
+                <div class="mb-2 sm:mb-0">
+                  <p class="text-gray-800">8. ครีม</p>
+                  <p class="text-xs text-gray-500">มีพร้อมใช้</p>
+                </div>
+                <div class="flex items-center justify-between sm:justify-end w-full sm:w-auto">
+                  <div class="radio-group">
+                    <label class="radio-option">
+                      <input type="radio" name="cream" value="พร้อมใช้" class="custom-radio" required>
+                      <span>พร้อมใช้</span>
+                    </label>
+                    <label class="radio-option">
+                      <input type="radio" name="cream" value="ชำรุด" class="custom-radio">
+                      <span>ชำรุด</span>
+                    </label>
+                  </div>
+                  <button type="button" class="add-note note-button ml-4" data-item="cream">
+                    <i class="fas fa-comment"></i> หมายเหตุ
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between py-2 border-b border-gray-100">
+                <div class="mb-2 sm:mb-0">
+                  <p class="text-gray-800">9. กระดาษ</p>
+                  <p class="text-xs text-gray-500">มีสำรองอย่างน้อย 1 แพ็ค</p>
+                </div>
+                <div class="flex items-center justify-between sm:justify-end w-full sm:w-auto">
+                  <div class="radio-group">
+                    <label class="radio-option">
+                      <input type="radio" name="paper" value="พร้อมใช้" class="custom-radio" required>
+                      <span>พร้อมใช้</span>
+                    </label>
+                    <label class="radio-option">
+                      <input type="radio" name="paper" value="ชำรุด" class="custom-radio">
+                      <span>ชำรุด</span>
+                    </label>
+                  </div>
+                  <button type="button" class="add-note note-button ml-4" data-item="paper">
+                    <i class="fas fa-comment"></i> หมายเหตุ
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h2 class="text-lg font-medium text-gray-800 mb-3">3. ทดสอบประสิทธิภาพ</h2>
+            <div class="space-y-3">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between py-2 border-b border-gray-100">
+                <div class="mb-2 sm:mb-0">
+                  <p class="text-gray-800">1. ทดลองเปิดเครื่อง</p>
+                  <p class="text-xs text-gray-500">หน้าจอสว่าง, หน้าปัดชัดเจน</p>
+                </div>
+                <div class="flex items-center justify-between sm:justify-end w-full sm:w-auto">
+                  <div class="radio-group">
+                    <label class="radio-option">
+                      <input type="radio" name="power_test" value="ปกติ" class="custom-radio" required>
+                      <span>ปกติ</span>
+                    </label>
+                    <label class="radio-option">
+                      <input type="radio" name="power_test" value="ไม่พร้อมใช้" class="custom-radio">
+                      <span>ไม่พร้อมใช้</span>
+                    </label>
+                  </div>
+                  <button type="button" class="add-note note-button ml-4" data-item="power_test">
+                    <i class="fas fa-comment"></i> หมายเหตุ
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between py-2 border-b border-gray-100">
+                <div class="mb-2 sm:mb-0">
+                  <p class="text-gray-800">2. การทำงานของปุ่มต่างๆ</p>
+                  <p class="text-xs text-gray-500">หน้าจอแสดงผลตามที่เลือก</p>
+                </div>
+                <div class="flex items-center justify-between sm:justify-end w-full sm:w-auto">
+                  <div class="radio-group">
+                    <label class="radio-option">
+                      <input type="radio" name="buttons_test" value="ปกติ" class="custom-radio" required>
+                      <span>ปกติ</span>
+                    </label>
+                    <label class="radio-option">
+                      <input type="radio" name="buttons_test" value="ไม่พร้อมใช้" class="custom-radio">
+                      <span>ไม่พร้อมใช้</span>
+                    </label>
+                  </div>
+                  <button type="button" class="add-note note-button ml-4" data-item="buttons_test">
+                    <i class="fas fa-comment"></i> หมายเหตุ
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between py-2 border-b border-gray-100">
+                <div class="mb-2 sm:mb-0">
+                  <p class="text-gray-800">3. รถเข็น</p>
+                  <p class="text-xs text-gray-500">ไม่มีคราบสกปรก, ล้อหมุนได้ปกติ</p>
+                </div>
+                <div class="flex items-center justify-between sm:justify-end w-full sm:w-auto">
+                  <div class="radio-group">
+                    <label class="radio-option">
+                      <input type="radio" name="cart_test" value="ปกติ" class="custom-radio" required>
+                      <span>ปกติ</span>
+                    </label>
+                    <label class="radio-option">
+                      <input type="radio" name="cart_test" value="ไม่พร้อมใช้" class="custom-radio">
+                      <span>ไม่พร้อมใช้</span>
+                    </label>
+                  </div>
+                  <button type="button" class="add-note note-button ml-4" data-item="cart_test">
+                    <i class="fas fa-comment"></i> หมายเหตุ
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between py-2 border-b border-gray-100">
+                <div class="mb-2 sm:mb-0">
+                  <p class="text-gray-800">4. ปริมาณแบตเตอรี่</p>
+                  <p class="text-xs text-gray-500">หากเหลือน้อยกว่า ¼ ให้ชาร์จ 8 ชม.</p>
+                </div>
+                <div class="flex items-center justify-between sm:justify-end w-full sm:w-auto">
+                  <div class="radio-group">
+                    <label class="radio-option">
+                      <input type="radio" name="battery_test" value="ปกติ" class="custom-radio" required>
+                      <span>ปกติ</span>
+                    </label>
+                    <label class="radio-option">
+                      <input type="radio" name="battery_test" value="ไม่พร้อมใช้" class="custom-radio">
+                      <span>ไม่พร้อมใช้</span>
+                    </label>
+                  </div>
+                  <button type="button" class="add-note note-button ml-4" data-item="battery_test">
+                    <i class="fas fa-comment"></i> หมายเหตุ
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between py-2">
+                <div class="mb-2 sm:mb-0">
+                  <p class="text-gray-800">5. เปลี่ยนแบตเตอรี่ทุก 2 ปี</p>
+                  <p class="text-xs text-gray-500">ครบเปลี่ยนครั้งต่อไป: กันยายน 2568</p>
+                </div>
+                <div class="flex items-center justify-between sm:justify-end w-full sm:w-auto">
+                  <label class="radio-option">
+                    <input type="checkbox" name="battery_change" value="รับทราบ" class="custom-checkbox">
+                    <span>รับทราบ</span>
+                  </label>
+                  <button type="button" class="add-note note-button ml-4" data-item="battery_change">
+                    <i class="fas fa-comment"></i> หมายเหตุ
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex justify-center mt-6">
+            <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-md shadow-sm transition-colors duration-300 flex items-center focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+              <i class="fas fa-save mr-2"></i>บันทึกการตรวจเช็ค
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- History Section -->
+      <div id="content-history" class="bg-white rounded-lg shadow-md p-4" style="display: none;">
+        <div class="flex flex-col md:flex-row justify-between items-center mb-4">
+          <h2 class="text-lg font-medium text-gray-800 mb-3 md:mb-0">ประวัติการตรวจเช็ค</h2>
+          <div class="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-3 w-full md:w-auto">
+            <div class="flex items-center">
+              <label class="text-sm mr-2">ตั้งแต่:</label>
+              <input type="date" id="history-from" class="px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400 text-sm">
+            </div>
+            <div class="flex items-center">
+              <label class="text-sm mr-2">ถึง:</label>
+              <input type="date" id="history-to" class="px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400 text-sm">
+            </div>
+            <button id="search-history" class="bg-indigo-600 hover:bg-indigo-700 text-white py-1 px-3 rounded-md shadow-sm transition-colors duration-300 text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+              <i class="fas fa-search mr-1"></i>ค้นหา
+            </button>
+            <!-- ปุ่มพิมพ์ใหม่ -->
+            <button id="print-history" class="bg-gray-600 hover:bg-gray-700 text-white py-1 px-3 rounded-md shadow-sm transition-colors duration-300 text-sm ml-3 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+              <i class="fas fa-print mr-1"></i>พิมพ์
+            </button>
+            <!-- สิ้นสุดปุ่มพิมพ์ใหม่ -->
+          </div>
+        </div>
+
+        <div class="overflow-x-auto" id="print-area"> <!-- เพิ่ม id="print-area" ที่นี่ -->
+          <table id="history-table" class="min-w-full bg-white">
+            <thead>
+              <tr class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
+                <th class="py-2 px-3 text-left">วันที่</th>
+                <th class="py-2 px-3 text-left">เวร</th>
+                <th class="py-2 px-3 text-left">ผู้ตรวจเช็ค</th>
+                <th class="py-2 px-3 text-center">สถานะ</th>
+                <th class="py-2 px-3 text-center">รายละเอียด</th>
+              </tr>
+            </thead>
+            <tbody id="history-data" class="text-sm">
+              <tr>
+                <td colspan="5" class="py-4 text-center text-gray-500">กำลังโหลดข้อมูล...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Notification Section -->
+      <div id="content-notification" class="bg-white rounded-lg shadow-md p-4" style="display: none;">
+        <h2 class="text-lg font-medium text-gray-800 mb-4">การแจ้งเตือน</h2>
+        <div id="notification-list" class="space-y-3">
+          <div class="p-3 border-l-4 border-yellow-400 bg-yellow-50 rounded-r-md flex items-start">
+            <div class="text-yellow-500 mr-3 mt-0.5">
+              <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <div>
+              <h3 class="font-medium text-yellow-700">แบตเตอรี่ใกล้ครบกำหนดเปลี่ยน</h3>
+              <p class="text-sm text-yellow-600 mt-1">ครบกำหนดเปลี่ยนแบตเตอรี่ในเดือนกันยายน 2568 (อีก 3 เดือน)</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dashboard Section -->
+      <div id="content-dashboard" class="bg-white rounded-lg shadow-md p-4" style="display: none;">
+        <h2 class="text-lg font-medium text-gray-800 mb-4">Dashboard สรุปผล</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          <div class="bg-blue-50 p-3 rounded-lg border border-blue-100">
+            <div class="text-blue-500 mb-1">
+              <i class="fas fa-clipboard-check"></i>
+            </div>
+            <p class="text-sm text-gray-600">การตรวจเช็คทั้งหมด</p>
+            <p id="total-checks" class="text-2xl font-medium text-blue-700 mt-1">0</p>
+          </div>
+          <div class="bg-green-50 p-3 rounded-lg border border-green-100">
+            <div class="text-green-500 mb-1">
+              <i class="fas fa-check-circle"></i>
+            </div>
+            <p class="text-sm text-gray-600">สถานะพร้อมใช้</p>
+            <p id="ready-status" class="text-2xl font-medium text-green-700 mt-1">0</p>
+          </div>
+          <div class="bg-red-50 p-3 rounded-lg border border-red-100">
+            <div class="text-red-500 mb-1">
+              <i class="fas fa-exclamation-circle"></i>
+            </div>
+            <p class="text-sm text-gray-600">พบปัญหา</p>
+            <p id="issue-status" class="text-2xl font-medium text-red-700 mt-1">0</p>
+          </div>
+          <div class="bg-purple-50 p-3 rounded-lg border border-purple-100">
+            <div class="text-purple-500 mb-1">
+              <i class="fas fa-battery-half"></i>
+            </div>
+            <p class="text-sm text-gray-600">อายุแบตเตอรี่</p>
+            <p id="battery-age" class="text-2xl font-medium text-purple-700 mt-1">21</p>
+            <p class="text-xs text-gray-500">เดือน</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div class="bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
+            <h3 class="text-base font-medium text-gray-700 mb-3">ปัญหาที่พบบ่อย</h3>
+            <div id="common-issues-chart" class="h-48">
+              <div class="flex h-full items-center justify-center">
+                <div class="text-center">
+                  <div class="w-12 h-12 mx-auto mb-3 text-gray-300">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  </div>
+                  <p class="text-sm text-gray-500">ยังไม่มีข้อมูลเพียงพอ</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
+            <h3 class="text-base font-medium text-gray-700 mb-3">การตรวจเช็คตามเวร</h3>
+            <div id="shift-chart" class="h-48">
+              <div class="flex h-full items-center justify-center">
+                <div class="text-center">
+                  <div class="w-12 h-12 mx-auto mb-3 text-gray-300">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
+                    </svg>
+                  </div>
+                  <p class="text-sm text-gray-500">ยังไม่มีข้อมูลเพียงพอ</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-gray-200 py-3 mt-4 shadow-sm">
+      <div class="container mx-auto px-4 text-center text-sm text-gray-500">
+        <p>© 2024 ระบบตรวจเช็คเครื่อง EKG Mediblue</p>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Note Modal (สำหรับเพิ่มหมายเหตุในหน้า Check Form) -->
+  <div id="note-modal" class="modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h3 class="text-lg font-medium text-gray-800 mb-3">เพิ่มหมายเหตุ</h3>
+      <input type="hidden" id="note-item-id">
+      <div class="mb-3">
+        <label class="block text-sm text-gray-600 mb-1">หมายเหตุ</label>
+        <textarea id="note-text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2" rows="3"></textarea>
+      </div>
+      <div class="mb-4">
+        <label class="block text-sm text-gray-600 mb-1">อัปโหลดรูปภาพ (ถ้ามี)</label>
+        <input type="file" id="note-image" accept="image/*" class="w-full text-sm">
+        <div id="image-preview-container" class="mt-2" style="display: none;">
+          <img id="image-preview" class="image-preview">
+        </div>
+      </div>
+      <div class="flex justify-end">
+        <button id="save-note" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-1.5 px-4 rounded-md shadow-sm transition-colors duration-300 text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+          <i class="fas fa-save mr-1"></i>บันทึก
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detail Modal (สำหรับแสดงรายละเอียดการตรวจเช็ค - Read-Only) -->
+  <div id="detail-modal" class="modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h3 class="text-lg font-medium text-gray-800 mb-3">รายละเอียดการตรวจเช็ค</h3>
+      <div id="detail-content" class="space-y-3 text-sm">
+        <!-- Content will be filled dynamically as read-only -->
+        <div class="bg-indigo-50 p-3 rounded-md mb-3">
+          <h4 class="font-medium text-indigo-700">ข้อมูลทั่วไป</h4>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
+            <p><span class="text-gray-500">วันที่:</span> <span id="detail-check-date"></span></p>
+            <p><span class="text-gray-500">เวร:</span> <span id="detail-shift"></span></p>
+            <p><span class="text-gray-500">ผู้ตรวจเช็ค:</span> <span id="detail-checker-name"></span></p>
+          </div>
+        </div>
+
+        <h4 class="font-medium text-gray-700 mb-2">ตรวจสภาพทั่วไป</h4>
+        <div id="detail-general-check-items" class="space-y-2 mb-4">
+          <!-- General check items will be dynamically loaded here as read-only -->
+        </div>
+
+        <h4 class="font-medium text-gray-700 mb-2">ทดสอบประสิทธิภาพ</h4>
+        <div id="detail-performance-test-items" class="space-y-2">
+          <!-- Performance test items will be dynamically loaded here as read-only -->
+        </div>
+      </div>
+      <div class="flex justify-end mt-4">
+          <button id="print-detail" class="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-5 rounded-md shadow-sm transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+              <i class="fas fa-print mr-2"></i>พิมพ์
+          </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Success Modal -->
+  <div id="success-modal" class="modal">
+    <div class="modal-content max-w-sm">
+      <span class="close">&times;</span>
+      <div class="text-center">
+        <div class="text-green-500 text-4xl mb-3">
+          <i class="fas fa-check-circle"></i>
+        </div>
+        <h3 class="text-lg font-medium text-gray-800 mb-2">บันทึกข้อมูลสำเร็จ</h3>
+        <p class="text-gray-600 mb-4 text-sm">ข้อมูลการตรวจเช็คถูกบันทึกเรียบร้อยแล้ว</p>
+        <button id="success-ok" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-5 rounded-md shadow-sm transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+          ตกลง
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Firebase Configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyAHW1ykNd0xJjRrUx0EGk-L13wctxspWPE",
+      authDomain: "medical-equipment-bc57e.firebaseapp.com",
+      databaseURL: "https://medical-equipment-bc57e-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "medical-equipment-bc57e",
+      storageBucket: "medical-equipment-bc57e.firebasestorage.app",
+      messagingSenderId: "775110527070",
+      appId: "1:775110527070:web:ec1a388fe3efb9d4f18ccf",
+      measurementId: "G-TQFRQD3L13"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+    const storage = firebase.storage();
+
+    // Global variables
+    let currentTab = 'check';
+    let notes = {}; // Used for the main check form
+    let imageFiles = {}; // Used for the main check form
+    let checkData = []; // Stores all fetched check records
+    let notificationCount = 1; // Start with 1 for battery notification
+    let currentDetailCheck = null; // To store the check object currently displayed in detail modal
+
+    // DOM Elements
+    const tabCheck = document.getElementById('tab-check');
+    const tabHistory = document.getElementById('tab-history');
+    const tabNotification = document.getElementById('tab-notification');
+    const tabDashboard = document.getElementById('tab-dashboard');
+    const contentCheck = document.getElementById('content-check');
+    const contentHistory = document.getElementById('content-history');
+    const contentNotification = document.getElementById('content-notification');
+    const contentDashboard = document.getElementById('content-dashboard');
+    const checkForm = document.getElementById('check-form');
+    const noteModal = document.getElementById('note-modal'); // Original note modal for main form
+    const detailModal = document.getElementById('detail-modal'); // Detail/Edit modal
+    const successModal = document.getElementById('success-modal');
+    const closeButtons = document.getElementsByClassName('close');
+    const saveNoteBtn = document.getElementById('save-note'); // Save button for original note modal
+    const successOkBtn = document.getElementById('success-ok');
+    const searchHistoryBtn = document.getElementById('search-history');
+    const printHistoryBtn = document.getElementById('print-history');
+    const printDetailBtn = document.getElementById('print-detail'); // New print button for detail modal
+    const notificationBadge = document.getElementById('notification-badge');
+    const loadingIndicator = document.getElementById('loading');
+    const setAllNormalCheckbox = document.getElementById('set-all-normal'); // Checkbox for setting all normal
+
+    // Detail Modal specific elements for read-only display
+    const detailCheckDateSpan = document.getElementById('detail-check-date');
+    const detailShiftSpan = document.getElementById('detail-shift');
+    const detailCheckerNameSpan = document.getElementById('detail-checker-name');
+    const detailGeneralCheckItemsDiv = document.getElementById('detail-general-check-items');
+    const detailPerformanceTestItemsDiv = document.getElementById('detail-performance-test-items');
+
+
+    // Set current date as default
+    document.getElementById('check-date').valueAsDate = new Date();
+    // Initialize notification badge
+    notificationBadge.textContent = notificationCount;
+
+    // Tab switching function
+    function switchTab(tab) {
+      // Reset active tab styles for all tabs
+      tabCheck.classList.remove('tab-active');
+      tabHistory.classList.remove('tab-active');
+      tabNotification.classList.remove('tab-active');
+      tabDashboard.classList.remove('tab-active');
+      tabCheck.classList.add('text-gray-500', 'hover:text-gray-700');
+      tabHistory.classList.add('text-gray-500', 'hover:text-gray-700');
+      tabNotification.classList.add('text-gray-500', 'hover:text-gray-700');
+      tabDashboard.classList.add('text-gray-500', 'hover:text-gray-700');
+
+      // Hide all content sections
+      contentCheck.style.display = 'none';
+      contentHistory.style.display = 'none';
+      contentNotification.style.display = 'none';
+      contentDashboard.style.display = 'none';
+
+      // Set active tab and show corresponding content
+      if (tab === 'check') {
+        tabCheck.classList.add('tab-active');
+        tabCheck.classList.remove('text-gray-500', 'hover:text-gray-700');
+        contentCheck.style.display = 'block';
+      } else if (tab === 'history') {
+        tabHistory.classList.add('tab-active');
+        tabHistory.classList.remove('text-gray-500', 'hover:text-gray-700');
+        contentHistory.style.display = 'block';
+        loadHistory(); // Load history data when history tab is active
+      } else if (tab === 'notification') {
+        tabNotification.classList.add('tab-active');
+        tabNotification.classList.remove('text-gray-500', 'hover:text-gray-700');
+        contentNotification.style.display = 'block';
+      } else if (tab === 'dashboard') {
+        tabDashboard.classList.add('tab-active');
+        tabDashboard.classList.remove('text-gray-500', 'hover:text-gray-700');
+        contentDashboard.style.display = 'block';
+        loadDashboardData(); // Load dashboard data when dashboard tab is active
+      }
+
+      currentTab = tab;
+    }
+
+    // Tab event listeners
+    tabCheck.addEventListener('click', () => switchTab('check'));
+    tabHistory.addEventListener('click', () => switchTab('history'));
+    tabNotification.addEventListener('click', () => switchTab('notification'));
+    tabDashboard.addEventListener('click', () => switchTab('dashboard'));
+
+    // --- Original Note Modal (for main check form) functionality ---
+    const addNoteButtons = document.querySelectorAll('.add-note');
+    addNoteButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const itemId = button.getAttribute('data-item');
+        document.getElementById('note-item-id').value = itemId;
+        document.getElementById('note-text').value = notes[itemId]?.text || '';
+
+        const imagePreviewContainer = document.getElementById('image-preview-container');
+        const imagePreview = document.getElementById('image-preview');
+
+        if (notes[itemId]?.imageUrl) {
+          imagePreview.src = notes[itemId].imageUrl;
+          imagePreviewContainer.style.display = 'block';
+        } else {
+          imagePreviewContainer.style.display = 'none';
+          imagePreview.src = '';
+        }
+        document.getElementById('note-image').value = ''; // Clear file input
+        noteModal.style.display = 'flex';
+      });
+    });
+
+    document.getElementById('note-image').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+          const imagePreviewContainer = document.getElementById('image-preview-container');
+          const imagePreview = document.getElementById('image-preview');
+          imagePreview.src = event.target.result;
+          imagePreviewContainer.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+      } else {
+        document.getElementById('image-preview-container').style.display = 'none';
+        document.getElementById('image-preview').src = '';
+      }
+    });
+
+    saveNoteBtn.addEventListener('click', () => {
+      const itemId = document.getElementById('note-item-id').value;
+      const noteText = document.getElementById('note-text').value;
+      const imageFile = document.getElementById('note-image').files[0];
+
+      if (imageFile) {
+        imageFiles[itemId] = imageFile;
+      } else if (notes[itemId]?.imageUrl && !imageFile) {
+        // Keep existing image URL if no new file and no explicit removal
+      } else {
+        delete imageFiles[itemId]; // Clear if no new file and no existing URL
+      }
+
+      notes[itemId] = {
+        text: noteText,
+        hasImage: !!imageFile || !!notes[itemId]?.imageUrl
+      };
+      if (notes[itemId]?.imageUrl) {
+        notes[itemId].imageUrl = notes[itemId].imageUrl;
+      }
+
+      const noteButton = document.querySelector(`.add-note[data-item="${itemId}"]`);
+      if (noteText || notes[itemId].hasImage) {
+        noteButton.classList.add('has-note');
+        noteButton.innerHTML = '<i class="fas fa-comment-dots"></i> มีหมายเหตุ';
+      } else {
+        noteButton.classList.remove('has-note');
+        noteButton.innerHTML = '<i class="fas fa-comment"></i> หมายเหตุ';
+      }
+      noteModal.style.display = 'none';
+    });
+    // --- End Original Note Modal functionality ---
+
+
+    // Close modals using close buttons
+    for (let i = 0; i < closeButtons.length; i++) {
+      closeButtons[i].addEventListener('click', function() {
+        this.parentElement.parentElement.style.display = 'none';
+      });
+    }
+
+    // Close success modal
+    successOkBtn.addEventListener('click', () => {
+      successModal.style.display = 'none';
+      resetForm();
+    });
+
+    // Close modals when clicking outside
+    window.addEventListener('click', (event) => {
+      if (event.target === noteModal) {
+        noteModal.style.display = 'none';
+      }
+      if (event.target === detailModal) {
+        detailModal.style.display = 'none';
+        currentDetailCheck = null; // Clear current detail when modal is closed
+      }
+      if (event.target === successModal) {
+        successModal.style.display = 'none';
+      }
+    });
+
+    // Event listener for the new "Set all to normal" checkbox
+    setAllNormalCheckbox.addEventListener('change', () => {
+        if (setAllNormalCheckbox.checked) {
+            // General check items
+            const generalItemsToSetNormal = ['display', 'power_switch', 'mode_switch', 'power_cord', 'electrode', 'limb_leads', 'chest_leads', 'cream', 'paper'];
+            generalItemsToSetNormal.forEach(item => {
+                const radioButtons = document.querySelectorAll(`input[name="${item}"]`);
+                radioButtons.forEach(radio => {
+                    if (radio.value === 'พร้อมใช้') {
+                        radio.checked = true;
+                    }
+                });
+            });
+
+            // Performance test items
+            const testItemsToSetNormal = ['power_test', 'buttons_test', 'cart_test', 'battery_test'];
+            testItemsToSetNormal.forEach(item => {
+                const radioButtons = document.querySelectorAll(`input[name="${item}"]`);
+                radioButtons.forEach(radio => {
+                    if (radio.value === 'ปกติ') {
+                        radio.checked = true;
+                    }
+                });
+            });
+
+            // Battery change acknowledgment (if it's a checkbox)
+            const batteryChangeCheckbox = document.querySelector('input[name="battery_change"]');
+            if (batteryChangeCheckbox) {
+                batteryChangeCheckbox.checked = true;
+            }
+        }
+        // If unchecked, no action is taken as per request. User can manually change.
+    });
+
+
+    // Form submission (for main check form)
+    checkForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      showLoading();
+
+      const formData = new FormData(checkForm);
+      const checkDate = document.getElementById('check-date').value;
+      const shift = formData.get('shift');
+      const checkerName = document.getElementById('checker-name').value;
+
+      // Collect all form data
+      const checkRecord = {
+        date: checkDate,
+        shift: shift,
+        checkerName: checkerName,
+        timestamp: Date.now(),
+        generalCheck: {},
+        performanceTest: {},
+        notes: {}
+      };
+
+      // General check items
+      const generalItems = ['display', 'power_switch', 'mode_switch', 'power_cord', 'electrode', 'limb_leads', 'chest_leads', 'cream', 'paper'];
+      generalItems.forEach(item => {
+        checkRecord.generalCheck[item] = formData.get(item);
+      });
+
+      // Performance test items
+      const testItems = ['power_test', 'buttons_test', 'cart_test', 'battery_test'];
+      testItems.forEach(item => {
+        checkRecord.performanceTest[item] = formData.get(item);
+      });
+
+      // Battery change acknowledgment
+      checkRecord.batteryChangeAcknowledged = formData.has('battery_change');
+
+      // Check overall status
+      let hasIssue = false;
+      for (const item of generalItems) {
+        if (checkRecord.generalCheck[item] === 'ชำรุด') {
+          hasIssue = true;
+          break;
+        }
+      }
+
+      if (!hasIssue) {
+        for (const item in checkRecord.performanceTest) {
+          if (checkRecord.performanceTest[item] === 'ไม่พร้อมใช้') {
+            hasIssue = true;
+            break;
+          }
+        }
+      }
+
+      checkRecord.status = hasIssue ? 'มีปัญหา' : 'พร้อมใช้';
+
+      try {
+        const newCheckRef = database.ref('checks').push();
+        const checkId = newCheckRef.key;
+
+        const uploadPromises = [];
+        for (const itemId in imageFiles) {
+          if (imageFiles[itemId]) {
+            const imageRef = storage.ref(`check_images/${checkId}/${itemId}`);
+            const uploadTask = imageRef.put(imageFiles[itemId]);
+            uploadPromises.push(new Promise((resolve, reject) => {
+              uploadTask.on('state_changed', null, reject, async () => {
+                const downloadURL = await imageRef.getDownloadURL();
+                if (!checkRecord.notes[itemId]) checkRecord.notes[itemId] = { text: '' };
+                checkRecord.notes[itemId].imageUrl = downloadURL;
+                resolve();
+              });
+            }));
+          }
+        }
+        await Promise.all(uploadPromises);
+
+        for (const itemId in notes) {
+            if (notes[itemId].text || notes[itemId].hasImage) {
+                if (!checkRecord.notes[itemId]) checkRecord.notes[itemId] = {};
+                checkRecord.notes[itemId].text = notes[itemId].text;
+                if (notes[itemId].imageUrl && !imageFiles[itemId]) {
+                    checkRecord.notes[itemId].imageUrl = notes[itemId].imageUrl;
+                }
+            }
+        }
+
+        await newCheckRef.set(checkRecord);
+
+        document.getElementById('last-check').textContent = formatDateDisplay(checkDate);
+        document.getElementById('current-status').textContent = checkRecord.status === 'พร้อมใช้' ? 'พร้อมใช้งาน' : 'มีปัญหา';
+        document.getElementById('current-status').className = checkRecord.status === 'พร้อมใช้' ? 'font-medium text-green-600' : 'font-medium text-red-600';
+
+        hideLoading();
+        successModal.style.display = 'flex';
+
+      } catch (error) {
+        console.error('Error saving check record:', error);
+        hideLoading();
+        const errorMessageModal = document.createElement('div');
+        errorMessageModal.className = 'modal';
+        errorMessageModal.style.display = 'flex';
+        errorMessageModal.innerHTML = `
+            <div class="modal-content max-w-sm">
+                <span class="close">&times;</span>
+                <div class="text-center">
+                    <div class="text-red-500 text-4xl mb-3">
+                        <i class="fas fa-times-circle"></i>
+                    </div>
+                    <h3 class="text-lg font-medium text-gray-800 mb-2">เกิดข้อผิดพลาด</h3>
+                    <p class="text-gray-600 mb-4 text-sm">ไม่สามารถบันทึกข้อมูลได้: ${error.message || 'กรุณาลองใหม่อีกครั้ง'}</p>
+                    <button class="bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-5 rounded-md shadow-sm transition-colors duration-300 close-error-modal">
+                        ตกลง
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(errorMessageModal);
+        errorMessageModal.querySelector('.close').addEventListener('click', () => errorMessageModal.style.display = 'none');
+        errorMessageModal.querySelector('.close-error-modal').addEventListener('click', () => errorMessageModal.style.display = 'none');
+      }
+    });
+
+    // Reset form after submission
+    function resetForm() {
+      checkForm.reset();
+      document.getElementById('check-date').valueAsDate = new Date();
+      notes = {};
+      imageFiles = {};
+      setAllNormalCheckbox.checked = false;
+
+      const noteButtons = document.querySelectorAll('.add-note');
+      noteButtons.forEach(button => {
+        button.classList.remove('has-note');
+        button.innerHTML = '<i class="fas fa-comment"></i> หมายเหตุ';
+      });
+    }
+
+    // Load history data
+    async function loadHistory() {
+      const historyData = document.getElementById('history-data');
+      historyData.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-gray-500">กำลังโหลดข้อมูล...</td></tr>';
+
+      try {
+        const checksRef = database.ref('checks');
+        const snapshot = await checksRef.orderByChild('timestamp').once('value');
+
+        checkData = [];
+        snapshot.forEach((childSnapshot) => {
+          const check = childSnapshot.val();
+          check.id = childSnapshot.key;
+          checkData.unshift(check);
+        });
+
+        displayHistory(checkData);
+
+      } catch (error) {
+        console.error('Error loading history:', error);
+        historyData.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-red-500">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>';
+      }
+    }
+
+    // Display history data in the table
+    function displayHistory(data) {
+      const historyData = document.getElementById('history-data');
+
+      if (data.length === 0) {
+        historyData.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-gray-500">ไม่พบข้อมูลการตรวจเช็ค</td></tr>';
+        return;
+      }
+
+      let html = '';
+      data.forEach(check => {
+        const formattedDate = formatDateDisplay(check.date);
+        const statusClass = check.status === 'พร้อมใช้' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+
+        html += `
+          <tr class="border-b hover:bg-gray-50">
+            <td class="py-2 px-3">${formattedDate}</td>
+            <td class="py-2 px-3">${check.shift}</td>
+            <td class="py-2 px-3">${check.checkerName}</td>
+            <td class="py-2 px-3 text-center">
+              <span class="px-2 py-0.5 rounded-full text-xs font-medium ${statusClass}">
+                ${check.status}
+              </span>
+            </td>
+            <td class="py-2 px-3 text-center">
+              <button class="view-detail text-indigo-600 hover:text-indigo-800" data-id="${check.id}">
+                <i class="fas fa-eye"></i>
+              </button>
+            </td>
+          </tr>
+        `;
+      });
+
+      historyData.innerHTML = html;
+
+      // Add event listeners to detail buttons after rendering
+      const detailButtons = document.querySelectorAll('.view-detail');
+      detailButtons.forEach(button => {
+        button.addEventListener('click', () => {
+          const checkId = button.getAttribute('data-id');
+          const check = checkData.find(c => c.id === checkId);
+          currentDetailCheck = check; // Store the current check object for printing
+          showCheckDetail(check); // Call the function to show details
+        });
+      });
+    }
+
+    // Show check detail in a modal (now read-only)
+    function showCheckDetail(check) {
+      detailCheckDateSpan.textContent = formatDateDisplay(check.date);
+      detailShiftSpan.textContent = check.shift;
+      detailCheckerNameSpan.textContent = check.checkerName;
+
+      // Clear previous items
+      detailGeneralCheckItemsDiv.innerHTML = '';
+      detailPerformanceTestItemsDiv.innerHTML = '';
+
+      // Populate General Check Items
+      const generalItemsMapping = {
+        display: '1. หน้าปัดและจอแสดงผล',
+        power_switch: '2. สวิทช์เปิด-ปิดเครื่อง',
+        mode_switch: '3. สวิทช์เลือกโหมดการใช้งาน',
+        power_cord: '4. ปลั๊กไฟ AC / สายไฟ AC',
+        electrode: '5. EKG Electrode / patient cable',
+        limb_leads: '6. ขั้วต่อ lead แขน-ขา',
+        chest_leads: '7. ขั้วต่อ lead หน้าอก',
+        cream: '8. ครีม',
+        paper: '9. กระดาษ'
+      };
+
+      for (const [key, label] of Object.entries(generalItemsMapping)) {
+        const currentValue = check.generalCheck[key];
+        const noteText = check.notes && check.notes[key] ? check.notes[key].text : '';
+        const imageUrl = check.notes && check.notes[key] ? check.notes[key].imageUrl : null;
+
+        const itemHtml = `
+          <div class="detail-item-row">
+            <div class="label-text">${label}</div>
+            <div class="value-text">
+              <span class="px-2 py-0.5 rounded-full text-xs font-medium ${currentValue === 'พร้อมใช้' || currentValue === 'ปกติ' ? 'status-ready' : 'status-issue'}">
+                ${currentValue}
+              </span>
+            </div>
+            ${noteText || imageUrl ? `
+            <div class="note-section w-full">
+              ${noteText ? `<p class="note-text">หมายเหตุ: ${noteText}</p>` : ''}
+              ${imageUrl ? `<div class="image-display mt-2"><img src="${imageUrl}" alt="รูปภาพประกอบ"></div>` : ''}
+            </div>
+            ` : ''}
+          </div>
+        `;
+        detailGeneralCheckItemsDiv.insertAdjacentHTML('beforeend', itemHtml);
+      }
+
+      // Populate Performance Test Items
+      const testItemsMapping = {
+        power_test: '1. ทดลองเปิดเครื่อง',
+        buttons_test: '2. การทำงานของปุ่มต่างๆ',
+        cart_test: '3. รถเข็น',
+        battery_test: '4. ปริมาณแบตเตอรี่'
+      };
+
+      for (const [key, label] of Object.entries(testItemsMapping)) {
+        const currentValue = check.performanceTest[key];
+        const noteText = check.notes && check.notes[key] ? check.notes[key].text : '';
+        const imageUrl = check.notes && check.notes[key] ? check.notes[key].imageUrl : null;
+
+        const itemHtml = `
+          <div class="detail-item-row">
+            <div class="label-text">${label}</div>
+            <div class="value-text">
+              <span class="px-2 py-0.5 rounded-full text-xs font-medium ${currentValue === 'ปกติ' ? 'status-ready' : 'status-issue'}">
+                ${currentValue}
+              </span>
+            </div>
+            ${noteText || imageUrl ? `
+            <div class="note-section w-full">
+              ${noteText ? `<p class="note-text">หมายเหตุ: ${noteText}</p>` : ''}
+              ${imageUrl ? `<div class="image-display mt-2"><img src="${imageUrl}" alt="รูปภาพประกอบ"></div>` : ''}
+            </div>
+            ` : ''}
+          </div>
+        `;
+        detailPerformanceTestItemsDiv.insertAdjacentHTML('beforeend', itemHtml);
+      }
+
+      // Special item: Battery change acknowledgment
+      const batteryChangeNoteText = check.notes && check.notes.battery_change ? check.notes.battery_change.text : '';
+      const batteryChangeImageUrl = check.notes && check.notes.battery_change ? check.notes.battery_change.imageUrl : null;
+
+      const batteryChangeHtml = `
+        <div class="detail-item-row">
+            <div class="label-text">5. เปลี่ยนแบตเตอรี่ทุก 2 ปี</div>
+            <div class="value-text">
+                <span class="px-2 py-0.5 rounded-full text-xs font-medium ${check.batteryChangeAcknowledged ? 'status-ready' : 'bg-gray-100 text-gray-700'}">
+                  ${check.batteryChangeAcknowledged ? 'รับทราบ' : 'ไม่ได้รับทราบ'}
+                </span>
+            </div>
+            ${batteryChangeNoteText || batteryChangeImageUrl ? `
+            <div class="note-section w-full">
+              ${batteryChangeNoteText ? `<p class="note-text">หมายเหตุ: ${batteryChangeNoteText}</p>` : ''}
+              ${batteryChangeImageUrl ? `<div class="image-display mt-2"><img src="${batteryChangeImageUrl}" alt="รูปภาพประกอบ"></div>` : ''}
+            </div>
+            ` : ''}
+        </div>
+      `;
+      detailPerformanceTestItemsDiv.insertAdjacentHTML('beforeend', batteryChangeHtml);
+
+      detailModal.style.display = 'flex'; // Show the modal
+    }
+
+    // Function to handle printing the detail modal content
+    printDetailBtn.addEventListener('click', () => {
+        if (!currentDetailCheck) {
+            console.error('No check record selected for printing.');
+            return;
+        }
+
+        const check = currentDetailCheck;
+        const formattedDate = formatDateDisplay(check.date);
+
+        let printHtmlContent = `
+            <h1 style="text-align: center; margin-bottom: 20px; font-size: 18pt;">รายละเอียดการตรวจเช็คเครื่อง EKG Mediblue</h1>
+            <div style="margin-bottom: 20px; padding: 10px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #f8faff;">
+                <h2 style="font-size: 14pt; margin-bottom: 10px;">ข้อมูลทั่วไป</h2>
+                <p><strong>วันที่:</strong> ${formattedDate}</p>
+                <p><strong>เวร:</strong> ${check.shift}</p>
+                <p><strong>ผู้ตรวจเช็ค:</strong> ${check.checkerName}</p>
+            </div>
+            <h2 style="font-size: 14pt; margin-bottom: 10px;">ตรวจสภาพทั่วไป</h2>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                <thead>
+                    <tr style="background-color: #f2f2f2;">
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">รายการ</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">สถานะ</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">หมายเหตุ / รูปภาพ</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        const generalItemsMapping = {
+            display: '1. หน้าปัดและจอแสดงผล',
+            power_switch: '2. สวิทช์เปิด-ปิดเครื่อง',
+            mode_switch: '3. สวิทช์เลือกโหมดการใช้งาน',
+            power_cord: '4. ปลั๊กไฟ AC / สายไฟ AC',
+            electrode: '5. EKG Electrode / patient cable',
+            limb_leads: '6. ขั้วต่อ lead แขน-ขา',
+            chest_leads: '7. ขั้วต่อ lead หน้าอก',
+            cream: '8. ครีม',
+            paper: '9. กระดาษ'
+        };
+
+        for (const [key, label] of Object.entries(generalItemsMapping)) {
+            const currentValue = check.generalCheck[key];
+            const noteText = check.notes && check.notes[key] ? check.notes[key].text : '';
+            const imageUrl = check.notes && check.notes[key] ? check.notes[key].imageUrl : null;
+            const statusColor = (currentValue === 'พร้อมใช้' || currentValue === 'ปกติ') ? '#166534' : '#991b1b'; // green-800 or red-800
+            const statusBg = (currentValue === 'พร้อมใช้' || currentValue === 'ปกติ') ? '#dcfce7' : '#fee2e2'; // green-100 or red-100
+
+            printHtmlContent += `
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${label}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;"><span style="background-color: ${statusBg}; color: ${statusColor}; padding: 2px 8px; border-radius: 9999px; font-size: 0.75rem;">${currentValue}</span></td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">
+                        ${noteText ? `<em>${noteText}</em><br>` : ''}
+                        ${imageUrl ? `<img src="${imageUrl}" style="max-width: 100px; max-height: 100px; margin-top: 5px; border-radius: 4px;">` : ''}
+                    </td>
+                </tr>
+            `;
+        }
+        printHtmlContent += `</tbody></table>`;
+
+        printHtmlContent += `
+            <h2 style="font-size: 14pt; margin-bottom: 10px;">ทดสอบประสิทธิภาพ</h2>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                <thead>
+                    <tr style="background-color: #f2f2f2;">
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">รายการ</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">สถานะ</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">หมายเหตุ / รูปภาพ</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        const testItemsMapping = {
+            power_test: '1. ทดลองเปิดเครื่อง',
+            buttons_test: '2. การทำงานของปุ่มต่างๆ',
+            cart_test: '3. รถเข็น',
+            battery_test: '4. ปริมาณแบตเตอรี่'
+        };
+
+        for (const [key, label] of Object.entries(testItemsMapping)) {
+            const currentValue = check.performanceTest[key];
+            const noteText = check.notes && check.notes[key] ? check.notes[key].text : '';
+            const imageUrl = check.notes && check.notes[key] ? check.notes[key].imageUrl : null;
+            const statusColor = (currentValue === 'ปกติ') ? '#166534' : '#991b1b'; // green-800 or red-800
+            const statusBg = (currentValue === 'ปกติ') ? '#dcfce7' : '#fee2e2'; // green-100 or red-100
+
+            printHtmlContent += `
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${label}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;"><span style="background-color: ${statusBg}; color: ${statusColor}; padding: 2px 8px; border-radius: 9999px; font-size: 0.75rem;">${currentValue}</span></td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">
+                        ${noteText ? `<em>${noteText}</em><br>` : ''}
+                        ${imageUrl ? `<img src="${imageUrl}" style="max-width: 100px; max-height: 100px; margin-top: 5px; border-radius: 4px;">` : ''}
+                    </td>
+                </tr>
+            `;
+        }
+
+        // Battery change acknowledgment
+        const batteryChangeNoteText = check.notes && check.notes.battery_change ? check.notes.battery_change.text : '';
+        const batteryChangeImageUrl = check.notes && check.notes.battery_change ? check.notes.battery_change.imageUrl : null;
+        const batteryChangeStatus = check.batteryChangeAcknowledged ? 'รับทราบ' : 'ไม่ได้รับทราบ';
+        const batteryChangeStatusColor = check.batteryChangeAcknowledged ? '#166534' : '#4b5563'; // green-800 or gray-600
+        const batteryChangeStatusBg = check.batteryChangeAcknowledged ? '#dcfce7' : '#e5e7eb'; // green-100 or gray-200
+
+        printHtmlContent += `
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">5. เปลี่ยนแบตเตอรี่ทุก 2 ปี</td>
+                <td style="border: 1px solid #ddd; padding: 8px;"><span style="background-color: ${batteryChangeStatusBg}; color: ${batteryChangeStatusColor}; padding: 2px 8px; border-radius: 9999px; font-size: 0.75rem;">${batteryChangeStatus}</span></td>
+                <td style="border: 1px solid #ddd; padding: 8px;">
+                    ${batteryChangeNoteText ? `<em>${batteryChangeNoteText}</em><br>` : ''}
+                    ${batteryChangeImageUrl ? `<img src="${batteryChangeImageUrl}" style="max-width: 100px; max-height: 100px; margin-top: 5px; border-radius: 4px;">` : ''}
+                </td>
+            </tr>
+        `;
+        printHtmlContent += `</tbody></table>`;
+
+
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write('<html><head><title>รายละเอียดการตรวจเช็คเครื่อง EKG</title>');
+        printWindow.document.write('<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">');
+        printWindow.document.write('<style>');
+        printWindow.document.write(`
+            body { font-family: 'Prompt', sans-serif; margin: 1cm; font-size: 10pt; }
+            h1, h2 { color: #374151; }
+            h1 { font-size: 18pt; text-align: center; margin-bottom: 20px; }
+            h2 { font-size: 14pt; margin-top: 20px; margin-bottom: 10px; }
+            p { margin-bottom: 5px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; }
+            th { background-color: #f2f2f2; font-weight: 600; }
+            .status-ready, .status-issue { padding: 2px 8px; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; display: inline-block; }
+            .status-ready { background-color: #dcfce7; color: #166534; }
+            .status-issue { background-color: #fee2e2; color: #991b1b; }
+            img { max-width: 100px; max-height: 100px; margin-top: 5px; border-radius: 4px; object-fit: contain; }
+            @page { size: A4; margin: 1cm; }
+        `);
+        printWindow.document.write('</style></head><body>');
+        printWindow.document.write(printHtmlContent);
+        printWindow.document.write('</body></html>');
+        printWindow.document.close();
+
+        printWindow.onload = function() {
+            printWindow.focus();
+            printWindow.print();
+            printWindow.close();
+        };
+    });
+
+
+    // Search history by date range
+    searchHistoryBtn.addEventListener('click', () => {
+      const fromDate = document.getElementById('history-from').value;
+      const toDate = document.getElementById('history-to').value;
+
+      if (!fromDate && !toDate) {
+        displayHistory(checkData); // If no dates, show all data
+        return;
+      }
+
+      let filteredData = [...checkData]; // Create a copy to filter
+
+      if (fromDate) {
+        filteredData = filteredData.filter(check => check.date >= fromDate);
+      }
+
+      if (toDate) {
+        filteredData = filteredData.filter(check => check.date <= toDate);
+      }
+
+      displayHistory(filteredData);
+    });
+
+    // Function to handle printing the history table
+    printHistoryBtn.addEventListener('click', () => {
+        // Get the content of the history table to print
+        const printContent = document.getElementById('history-table').outerHTML;
+
+        // Create a new window for printing
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write('<html><head><title>ประวัติการตรวจเช็คเครื่อง EKG</title>');
+        // Copy relevant styles for printing directly into the print window's head
+        printWindow.document.write('<link rel="stylesheet" href="https://cdn.tailwindcss.com">');
+        printWindow.document.write('<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">');
+        printWindow.document.write('<style>');
+        printWindow.document.write(`
+            body { font-family: 'Prompt', sans-serif; margin: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f2f2f2; }
+            .status-ready { background-color: #dcfce7; color: #166534; padding: 4px 8px; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; }
+            .status-issue { background-color: #fee2e2; color: #991b1b; padding: 4px 8px; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; }
+            /* ซ่อนปุ่ม "รายละเอียด" ในหน้าพิมพ์ */
+            .view-detail { display: none; }
+            @page { size: A4; margin: 1cm; }
+        `);
+        printWindow.document.write('</style></head><body>');
+        printWindow.document.write('<h1 style="text-align: center; margin-bottom: 20px;">ประวัติการตรวจเช็คเครื่อง EKG Mediblue</h1>');
+        printWindow.document.write(printContent);
+        printWindow.document.write('</body></html>');
+        printWindow.document.close(); // Close the document opened by .write()
+
+        // Wait for content to load then print
+        printWindow.onload = function() {
+            printWindow.focus(); // Focus on the new window
+            printWindow.print(); // Open the print dialog
+            printWindow.close(); // Close the print window after printing
+        };
+    });
+
+
+    // Load dashboard data
+    function loadDashboardData() {
+      if (checkData.length === 0) {
+        // If history hasn't been loaded yet, load it
+        database.ref('checks').orderByChild('timestamp').once('value')
+          .then((snapshot) => {
+            checkData = [];
+            snapshot.forEach((childSnapshot) => {
+              const check = childSnapshot.val();
+              check.id = childSnapshot.key;
+              checkData.unshift(check); // Add to beginning for reverse chronological order
+            });
+            updateDashboard();
+          })
+          .catch((error) => {
+            console.error('Error loading dashboard data:', error);
+            // Optionally display an error message on the dashboard
+          });
+      } else {
+        updateDashboard();
+      }
+    }
+
+    // Update dashboard with data
+    function updateDashboard() {
+      const totalChecks = checkData.length;
+      let readyStatus = 0;
+      let issueStatus = 0;
+
+      checkData.forEach(check => {
+        if (check.status === 'พร้อมใช้') {
+          readyStatus++;
+        } else {
+          issueStatus++;
+        }
+      });
+
+      document.getElementById('total-checks').textContent = totalChecks;
+      document.getElementById('ready-status').textContent = readyStatus;
+      document.getElementById('issue-status').textContent = issueStatus;
+
+      // Update last check info if available
+      if (checkData.length > 0) {
+        const lastCheck = checkData[0]; // Most recent check
+        document.getElementById('last-check').textContent = formatDateDisplay(lastCheck.date);
+        document.getElementById('current-status').textContent = lastCheck.status === 'พร้อมใช้' ? 'พร้อมใช้งาน' : 'มีปัญหา';
+        document.getElementById('current-status').className = lastCheck.status === 'พร้อมใช้' ? 'font-medium text-green-600' : 'font-medium text-red-600';
+      }
+      // Battery age calculation (example: assuming start date is fixed)
+      const startDate = new Date('2022-12-13'); // 13-12-65 (Thai year 2565 = 2022)
+      const now = new Date();
+      const diffMonths = (now.getFullYear() - startDate.getFullYear()) * 12 + (now.getMonth() - startDate.getMonth());
+      document.getElementById('battery-age').textContent = diffMonths;
+    }
+
+    // Format date for display (DD/MM/YYYY)
+    function formatDateDisplay(dateStr) {
+      // Add a check for undefined or null dateStr
+      if (typeof dateStr !== 'string' || !dateStr) {
+        return '-'; // Return a placeholder or empty string if dateStr is invalid
+      }
+
+      let date;
+
+      if (dateStr instanceof Date) {
+        date = dateStr;
+      } else if (dateStr.includes('-')) {
+        // Format: YYYY-MM-DD (from input type="date")
+        const [year, month, day] = dateStr.split('-');
+        date = new Date(year, month - 1, day);
+      } else if (dateStr.includes('/')) {
+        // Format: DD/MM/YYYY (if already formatted)
+        const [day, month, year] = dateStr.split('/');
+        date = new Date(year, month - 1, day);
+      } else {
+        // Fallback if format is unexpected
+        return dateStr;
+      }
+
+      const day = date.getDate().toString().padStart(2, '0');
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
+    }
+
+    // Show loading indicator
+    function showLoading() {
+      loadingIndicator.style.display = 'flex';
+    }
+
+    // Hide loading indicator
+    function hideLoading() {
+      loadingIndicator.style.display = 'none';
+    }
+
+    // Initialize the app by switching to the check tab
+    switchTab('check');
+
+    // Check if equipment image is loaded correctly
+    window.addEventListener('load', function() {
+      const equipmentImage = document.querySelector('.equipment-image');
+      equipmentImage.onerror = function() {
+        console.error('Equipment image failed to load, using placeholder.');
+        // Fallback to a generic placeholder SVG
+        this.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 24 24" fill="none" stroke="%23cccccc" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="12" cy="12" r="3"></circle><path d="M16.5 7.5v.001"></path></svg>';
+        this.alt = 'EKG Mediblue (Image not available)';
+      };
+    });
+
+    // Test Firebase connection (for debugging)
+    database.ref('.info/connected').on('value', (snap) => {
+      if (snap.val() === true) {
+        console.log('Connected to Firebase');
+      } else {
+        console.log('Disconnected from Firebase');
+      }
+    });
+  </script>
+</body>
+</html>
